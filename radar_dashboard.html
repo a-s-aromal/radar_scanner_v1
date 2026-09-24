@@ -1,0 +1,624 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ultrasonic radar</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Semi+Condensed:wght@400;500;600&family=Barlow:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --panel:      #c4c0b4;
+    --panel-edge: #8e8b81;
+    --panel-dark: #b0aca0;
+    --scope:      #15160f;
+    --phosphor:   #ffb43c;
+    --phosphor-d: #6b4a17;
+    --alert:      #e0442b;
+    --ink:        #262520;
+    --ink-soft:   #5d5b51;
+  }
+  * { box-sizing: border-box; }
+
+  html, body {
+    margin: 0;
+    background: #6f6c63;
+    color: var(--ink);
+    font-family: "Barlow", system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .console {
+    max-width: 1120px;
+    margin: 0 auto;
+    padding: 28px 20px 48px;
+  }
+
+  .panel {
+    background: var(--panel);
+    border-radius: 6px;
+    border-top: 1px solid #d6d3c9;
+    border-bottom: 1px solid #8e8b81;
+    box-shadow: 0 18px 40px rgba(0,0,0,.35);
+    padding: 20px;
+  }
+
+  .masthead {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 16px;
+    flex-wrap: wrap;
+    margin-bottom: 18px;
+  }
+  .masthead h1 {
+    font-family: "Barlow Semi Condensed", sans-serif;
+    font-weight: 600;
+    font-size: 21px;
+    letter-spacing: .01em;
+    margin: 0;
+  }
+  .masthead p {
+    margin: 2px 0 0;
+    font-family: "Barlow Semi Condensed", sans-serif;
+    font-size: 14px;
+    color: var(--ink-soft);
+  }
+
+  .link-row { display: flex; align-items: center; gap: 12px; }
+
+  button {
+    font-family: "Barlow Semi Condensed", sans-serif;
+    font-size: 15px;
+    font-weight: 500;
+    color: var(--ink);
+    background: linear-gradient(#d2cfc5, #bab6aa);
+    border: 1px solid #8e8b81;
+    border-radius: 4px;
+    padding: 7px 16px;
+    cursor: pointer;
+  }
+  button:hover { background: linear-gradient(#dad7ce, #c2beb2); }
+  button:active { background: #b0aca0; }
+  button:disabled { opacity: .45; cursor: not-allowed; }
+  button:focus-visible, input:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+
+  .state {
+    font-family: "Barlow Semi Condensed", sans-serif;
+    font-size: 14px;
+    color: var(--ink-soft);
+    display: flex; align-items: center; gap: 7px;
+  }
+  .lamp {
+    width: 9px; height: 9px; border-radius: 50%;
+    background: #8e8b81; box-shadow: inset 0 0 0 1px rgba(0,0,0,.25);
+  }
+  .lamp.live { background: #3f9a55; }
+  .lamp.sim  { background: var(--phosphor); }
+
+  .bay {
+    display: grid;
+    grid-template-columns: minmax(0,1fr) 232px;
+    gap: 20px;
+    align-items: start;
+  }
+
+  .scope-frame {
+    background: var(--scope);
+    border-radius: 4px;
+    padding: 10px;
+    box-shadow: inset 0 2px 10px rgba(0,0,0,.9), 0 1px 0 #d6d3c9;
+  }
+  canvas { display: block; width: 100%; height: auto; }
+
+  .readouts { display: flex; flex-direction: column; gap: 2px; }
+
+  .cell {
+    background: var(--panel-dark);
+    border-radius: 3px;
+    padding: 11px 13px 9px;
+  }
+  .cell + .cell { margin-top: 6px; }
+  .cell span {
+    display: block;
+    font-family: "Barlow Semi Condensed", sans-serif;
+    font-size: 13px;
+    color: var(--ink-soft);
+    margin-bottom: 1px;
+  }
+  .cell strong {
+    display: block;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    line-height: 1;
+  }
+  .big strong { font-size: 46px; }
+  .small strong { font-size: 24px; }
+  .unit { font-size: .46em; font-weight: 500; color: var(--ink-soft); margin-left: 3px; }
+
+  .warning {
+    display: flex; align-items: center; gap: 9px;
+    padding: 10px 13px;
+    border-radius: 3px;
+    background: var(--panel-dark);
+    font-family: "Barlow Semi Condensed", sans-serif;
+    font-size: 14px;
+    color: var(--ink-soft);
+    margin-top: 6px;
+  }
+  .warning.tripped { background: var(--alert); color: #fff1ec; }
+  .warning .lamp { background: #8e8b81; }
+  .warning.tripped .lamp { background: #fff1ec; }
+
+  .controls {
+    display: flex;
+    gap: 26px;
+    flex-wrap: wrap;
+    margin-top: 14px;
+    padding-top: 14px;
+    border-top: 1px solid #adaa9f;
+  }
+  .knob { display: flex; flex-direction: column; gap: 4px; min-width: 168px; }
+  .knob label {
+    font-family: "Barlow Semi Condensed", sans-serif;
+    font-size: 13px;
+    color: var(--ink-soft);
+  }
+  .knob b { font-variant-numeric: tabular-nums; font-weight: 600; color: var(--ink); }
+  input[type=range] { width: 100%; accent-color: #7a5a20; }
+
+  .footnote {
+    font-family: "Barlow Semi Condensed", sans-serif;
+    font-size: 13.5px;
+    line-height: 1.55;
+    color: #d8d5cc;
+    max-width: 66ch;
+    margin: 16px auto 0;
+    padding: 0 20px;
+  }
+  .footnote code {
+    font-family: "Barlow Semi Condensed", sans-serif;
+    background: rgba(0,0,0,.22);
+    padding: 0 4px;
+    border-radius: 2px;
+  }
+
+  @media (max-width: 760px) {
+    .bay { grid-template-columns: minmax(0,1fr); }
+    .big strong { font-size: 38px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="console">
+  <div class="panel">
+    <div class="masthead">
+      <div>
+        <h1>Ultrasonic radar</h1>
+        <p>Live sweep from the Arduino, 15&deg; to 165&deg;</p>
+      </div>
+      <div class="link-row">
+        <div class="state"><i class="lamp" id="lamp"></i><span id="stateText">Not connected</span></div>
+        <button id="scanBtn" disabled>Stop scan</button>
+        <button id="simBtn">Run demo</button>
+        <button id="connectBtn">Connect board</button>
+      </div>
+    </div>
+
+    <div class="bay">
+      <div>
+        <div class="scope-frame"><canvas id="scope"></canvas></div>
+        <div class="controls">
+          <div class="knob">
+            <label for="rangeInput">Scope range <b id="rangeVal">100</b> cm</label>
+            <input type="range" id="rangeInput" min="30" max="400" step="10" value="100">
+          </div>
+          <div class="knob">
+            <label for="alertInput">Warn closer than <b id="alertVal">25</b> cm</label>
+            <input type="range" id="alertInput" min="5" max="200" step="5" value="25">
+          </div>
+          <div class="knob">
+            <label for="fadeInput">Echo trail <b id="fadeVal">3.0</b> s</label>
+            <input type="range" id="fadeInput" min="0.5" max="8" step="0.5" value="3">
+          </div>
+        </div>
+      </div>
+
+      <div class="readouts">
+        <div class="cell big">
+          <span>Distance at current bearing</span>
+          <strong id="distNow">&mdash;<i class="unit">cm</i></strong>
+        </div>
+        <div class="cell small">
+          <span>Bearing</span>
+          <strong id="angleNow">&mdash;<i class="unit">&deg;</i></strong>
+        </div>
+        <div class="cell small">
+          <span>Closest object this sweep</span>
+          <strong id="closest">&mdash;<i class="unit">cm</i></strong>
+        </div>
+        <div class="warning" id="warnBox">
+          <i class="lamp"></i><span id="warnText">Clear</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <p class="footnote">
+    Web Serial runs in Chrome and Edge. Upload the sketch first, close the Arduino IDE serial monitor
+    so the port is free, then choose your board from the picker. If the picker never appears, serve this
+    file from <code>python -m http.server</code> and open it on localhost instead of double-clicking it.
+  </p>
+</div>
+
+<script>
+(() => {
+  "use strict";
+
+  const ANGLE_MIN = 15, ANGLE_MAX = 165;
+  const readings = new Array(181).fill(null);   // {dist, t} per whole degree
+
+  let maxRange = 100;
+  let alertAt  = 25;
+  let fadeMs   = 3000;
+
+  let currentAngle = ANGLE_MIN;
+  let sweepDir = 1;
+  let source = null;          // "serial" | "sim"
+
+  /* ---------- drawing ---------- */
+
+  const canvas = document.getElementById("scope");
+  const ctx = canvas.getContext("2d");
+  let W = 0, H = 0;
+
+  function resize() {
+    const cssW = canvas.parentElement.clientWidth - 20;
+    const cssH = Math.round(cssW * 0.56);
+    const dpr = window.devicePixelRatio || 1;
+    canvas.width = Math.round(cssW * dpr);
+    canvas.height = Math.round(cssH * dpr);
+    canvas.style.height = cssH + "px";
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    W = cssW; H = cssH;
+  }
+  window.addEventListener("resize", resize);
+
+  const rad = d => d * Math.PI / 180;
+
+  function draw() {
+    const cx = W / 2;
+    const cy = H - 26;
+    const R = Math.min(cx - 16, cy - 10);
+
+    ctx.clearRect(0, 0, W, H);
+
+    // range arcs
+    ctx.lineWidth = 1;
+    ctx.font = '12px "Barlow Semi Condensed", sans-serif';
+    ctx.textAlign = "left";
+    for (let i = 1; i <= 4; i++) {
+      const r = R * i / 4;
+      ctx.strokeStyle = "rgba(255,180,60,0.18)";
+      ctx.beginPath();
+      ctx.arc(cx, cy, r, rad(180), rad(360));
+      ctx.stroke();
+      ctx.fillStyle = "rgba(255,180,60,0.4)";
+      ctx.fillText(Math.round(maxRange * i / 4) + " cm", cx + 5, cy - r + 13);
+    }
+
+    // bearing spokes
+    for (let a = 0; a <= 180; a += 30) {
+      ctx.strokeStyle = "rgba(255,180,60,0.15)";
+      ctx.beginPath();
+      ctx.moveTo(cx, cy);
+      ctx.lineTo(cx + R * Math.cos(rad(a)), cy - R * Math.sin(rad(a)));
+      ctx.stroke();
+      if (a % 30 === 0) {
+        const lx = cx + (R + 11) * Math.cos(rad(a));
+        const ly = cy - (R + 11) * Math.sin(rad(a));
+        ctx.fillStyle = "rgba(255,180,60,0.45)";
+        ctx.textAlign = a < 60 ? "left" : a > 120 ? "right" : "center";
+        ctx.fillText(a + "\u00B0", lx, ly + 4);
+      }
+    }
+    ctx.strokeStyle = "rgba(255,180,60,0.28)";
+    ctx.beginPath();
+    ctx.moveTo(cx - R, cy);
+    ctx.lineTo(cx + R, cy);
+    ctx.stroke();
+
+    // afterglow wedge behind the head
+    const now = performance.now();
+    const trail = 34;
+    for (let k = 0; k < trail; k++) {
+      const a = currentAngle - sweepDir * k;
+      if (a < 0 || a > 180) continue;
+      ctx.strokeStyle = `rgba(255,180,60,${0.13 * (1 - k / trail)})`;
+      ctx.lineWidth = 2.6;
+      ctx.beginPath();
+      ctx.moveTo(cx, cy);
+      ctx.lineTo(cx + R * Math.cos(rad(a)), cy - R * Math.sin(rad(a)));
+      ctx.stroke();
+    }
+
+    // sweep head
+    ctx.strokeStyle = "rgba(255,190,90,0.85)";
+    ctx.lineWidth = 1.6;
+    ctx.beginPath();
+    ctx.moveTo(cx, cy);
+    ctx.lineTo(cx + R * Math.cos(rad(currentAngle)), cy - R * Math.sin(rad(currentAngle)));
+    ctx.stroke();
+
+    // echoes
+    for (let a = ANGLE_MIN; a <= ANGLE_MAX; a++) {
+      const rec = readings[a];
+      if (!rec || rec.dist < 0 || rec.dist > maxRange) continue;
+      const age = now - rec.t;
+      if (age > fadeMs) continue;
+      const alpha = 1 - age / fadeMs;
+      const r = (rec.dist / maxRange) * R;
+      const x = cx + r * Math.cos(rad(a));
+      const y = cy - r * Math.sin(rad(a));
+      const hot = rec.dist <= alertAt;
+
+      ctx.strokeStyle = hot
+        ? `rgba(224,68,43,${alpha * 0.75})`
+        : `rgba(255,180,60,${alpha * 0.55})`;
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(x, y);
+      ctx.lineTo(cx + Math.min(r + 16, R) * Math.cos(rad(a)),
+                 cy - Math.min(r + 16, R) * Math.sin(rad(a)));
+      ctx.stroke();
+
+      ctx.fillStyle = hot
+        ? `rgba(255,120,95,${alpha})`
+        : `rgba(255,206,130,${alpha})`;
+      ctx.beginPath();
+      ctx.arc(x, y, 2.6, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // hub
+    ctx.fillStyle = "rgba(255,180,60,0.75)";
+    ctx.beginPath();
+    ctx.arc(cx, cy, 3.4, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  /* ---------- readouts ---------- */
+
+  const distNow = document.getElementById("distNow");
+  const angleNow = document.getElementById("angleNow");
+  const closestEl = document.getElementById("closest");
+  const warnBox = document.getElementById("warnBox");
+  const warnText = document.getElementById("warnText");
+
+  function refreshReadouts() {
+    const rec = readings[currentAngle];
+    const live = rec && performance.now() - rec.t < 1500;
+
+    distNow.innerHTML = (live && rec.dist >= 0)
+      ? rec.dist.toFixed(1) + '<i class="unit">cm</i>'
+      : 'no echo<i class="unit"></i>';
+    angleNow.innerHTML = currentAngle + '<i class="unit">&deg;</i>';
+
+    let best = null, bestAngle = null;
+    const cutoff = performance.now() - fadeMs;
+    for (let a = ANGLE_MIN; a <= ANGLE_MAX; a++) {
+      const r = readings[a];
+      if (!r || r.dist < 0 || r.dist > maxRange || r.t < cutoff) continue;
+      if (best === null || r.dist < best) { best = r.dist; bestAngle = a; }
+    }
+
+    closestEl.innerHTML = best === null
+      ? '&mdash;<i class="unit">cm</i>'
+      : best.toFixed(1) + '<i class="unit">cm at ' + bestAngle + '&deg;</i>';
+
+    const tripped = best !== null && best <= alertAt;
+    warnBox.classList.toggle("tripped", tripped);
+    warnText.textContent = tripped
+      ? "Object within " + alertAt + " cm"
+      : (source ? "Clear" : "Standing by");
+  }
+
+  function frame() {
+    draw();
+    refreshReadouts();
+    requestAnimationFrame(frame);
+  }
+
+  /* ---------- incoming data ---------- */
+
+  function record(angle, dist) {
+    if (!Number.isFinite(angle) || angle < 0 || angle > 180) return;
+    if (angle !== currentAngle) sweepDir = angle > currentAngle ? 1 : -1;
+    currentAngle = angle;
+    readings[angle] = { dist: Number.isFinite(dist) ? dist : -1, t: performance.now() };
+  }
+
+  function handleLine(line) {
+    if (line.charAt(0) === "#") {
+      markScanning(line === "#run");
+      return;
+    }
+    const parts = line.split(",");
+    if (parts.length < 2) return;
+    record(parseInt(parts[0], 10), parseFloat(parts[1]));
+  }
+
+  /* ---------- serial ---------- */
+
+  const lamp = document.getElementById("lamp");
+  const stateText = document.getElementById("stateText");
+  const connectBtn = document.getElementById("connectBtn");
+  const simBtn = document.getElementById("simBtn");
+  const scanBtn = document.getElementById("scanBtn");
+
+  let port = null, reader = null, readableClosed = null, simTimer = null;
+  let writer = null;
+  let scanning = true;
+
+  function setState(mode, text) {
+    lamp.className = "lamp" + (mode ? " " + mode : "");
+    stateText.textContent = text;
+  }
+
+  function updateStatus() {
+    if (source === "serial") {
+      setState("live", scanning ? "Connected at 115200" : "Connected, servo parked, still measuring");
+    } else if (source === "sim") {
+      setState("sim", scanning ? "Demo data, board not connected" : "Demo, servo parked, still measuring");
+    } else {
+      setState("", "Not connected");
+    }
+  }
+
+  // Reflects the state the hardware reported, rather than what we asked for.
+  function markScanning(on) {
+    scanning = on;
+    scanBtn.textContent = on ? "Stop scan" : "Start scan";
+    updateStatus();
+  }
+
+  async function sendCommand(ch) {
+    if (!port || !port.writable) return;
+    try {
+      if (!writer) writer = port.writable.getWriter();
+      await writer.write(new TextEncoder().encode(ch));
+    } catch (e) {
+      setState("", "Could not send the command: " + e.message);
+    }
+  }
+
+  scanBtn.addEventListener("click", () => {
+    if (source === "sim") {
+      markScanning(!scanning);
+    } else if (source === "serial") {
+      sendCommand(scanning ? "s" : "g");   // the board confirms with #idle or #run
+    }
+  });
+
+  async function connect() {
+    if (!("serial" in navigator)) {
+      setState("", "Web Serial not available in this browser");
+      return;
+    }
+    try {
+      stopSim();
+      port = await navigator.serial.requestPort();
+      await port.open({ baudRate: 115200 });
+
+      source = "serial";
+      scanning = true;
+      connectBtn.textContent = "Disconnect";
+      setState("live", "Connected, board restarting");
+
+      // Opening the port resets the Uno. It ignores anything sent during the
+      // bootloader pause, so hold the button back for a couple of seconds.
+      setTimeout(() => {
+        if (source === "serial") { scanBtn.disabled = false; markScanning(scanning); }
+      }, 2200);
+
+      const decoder = new TextDecoderStream();
+      readableClosed = port.readable.pipeTo(decoder.writable).catch(() => {});
+      reader = decoder.readable.getReader();
+
+      let buffer = "";
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        buffer += value;
+        let i;
+        while ((i = buffer.indexOf("\n")) >= 0) {
+          handleLine(buffer.slice(0, i).trim());
+          buffer = buffer.slice(i + 1);
+        }
+        if (buffer.length > 512) buffer = "";
+      }
+    } catch (err) {
+      if (err && err.name !== "NotFoundError") {
+        setState("", "Could not open the port: " + err.message);
+      } else {
+        setState("", "Not connected");
+      }
+      await disconnect();
+    }
+  }
+
+  async function disconnect() {
+    try { if (writer) { writer.releaseLock(); } } catch (e) {}
+    try { if (reader) { await reader.cancel(); reader.releaseLock(); } } catch (e) {}
+    try { if (readableClosed) await readableClosed; } catch (e) {}
+    try { if (port) await port.close(); } catch (e) {}
+    writer = null; reader = null; readableClosed = null; port = null;
+    if (source === "serial") source = null;
+    connectBtn.textContent = "Connect board";
+    if (!source) { scanBtn.disabled = true; updateStatus(); }
+  }
+
+  connectBtn.addEventListener("click", () => {
+    if (port) disconnect(); else connect();
+  });
+
+  /* ---------- demo mode ---------- */
+
+  function stopSim() {
+    if (simTimer) { clearInterval(simTimer); simTimer = null; }
+    if (source === "sim") { source = null; scanBtn.disabled = true; updateStatus(); }
+    simBtn.textContent = "Run demo";
+  }
+
+  function startSim() {
+    let a = ANGLE_MIN, dir = 1;
+    const props = [
+      { at: 42,  width: 9,  dist: 58 },
+      { at: 96,  width: 5,  dist: 19 },
+      { at: 138, width: 13, dist: 84 }
+    ];
+    source = "sim";
+    simBtn.textContent = "Stop demo";
+    scanBtn.disabled = false;
+    markScanning(true);
+
+    simTimer = setInterval(() => {
+      let d = -1;
+      for (const p of props) {
+        if (Math.abs(a - p.at) <= p.width) {
+          d = p.dist + Math.abs(a - p.at) * 0.9 + (Math.random() - 0.5) * 2.5;
+        }
+      }
+      record(a, d);
+      if (!scanning) return;   // parked: keep measuring, don't move
+      a += dir;
+      if (a >= ANGLE_MAX || a <= ANGLE_MIN) dir *= -1;
+    }, 22);
+  }
+
+  simBtn.addEventListener("click", () => {
+    if (simTimer) stopSim();
+    else { if (port) disconnect(); startSim(); }
+  });
+
+  /* ---------- knobs ---------- */
+
+  const bind = (id, valId, fn, fmt) => {
+    const el = document.getElementById(id);
+    const out = document.getElementById(valId);
+    const apply = () => { fn(parseFloat(el.value)); out.textContent = fmt(el.value); };
+    el.addEventListener("input", apply);
+    apply();
+  };
+  bind("rangeInput", "rangeVal", v => maxRange = v, v => v);
+  bind("alertInput", "alertVal", v => alertAt = v, v => v);
+  bind("fadeInput",  "fadeVal",  v => fadeMs = v * 1000, v => parseFloat(v).toFixed(1));
+
+  resize();
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
